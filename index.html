@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Bird Clone</title>
+<style>
+  html, body { margin:0; padding:0; background:#cdd9e9; height:100%; display:flex; justify-content:center; align-items:center; }
+  canvas { border:2px solid #000; image-rendering:pixelated; background:#cdd9e9; }
+  #ui { position:absolute; top:10px; left:10px; color:#000000; font-family:sans-serif; font-size:20px; }
+</style>
+</head>
+<body>
+<div id="ui">Puntos: 0</div>
+<canvas id="gameCanvas" width="288" height="512"></canvas>
+<script>
+'use strict';
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let frames = 0;
+let score = 0;
+let best = localStorage.getItem('flappy_best') || 0;
+let pipes = [];
+let gameOver = false;
+
+const gravity = 0.6;
+const jump = -10;
+const pipeGap = 120;
+const pipeWidth = 52;
+const pipeSpeed = 2;
+
+// Pájaro
+const bird = {
+  x: 60,
+  y: canvas.height/2,
+  w: 34,
+  h: 24,
+  vy: 0,
+  draw() { ctx.fillStyle='red'; ctx.fillRect(this.x,this.y,this.w,this.h); },
+  update() {
+    this.vy += gravity;
+    this.y += this.vy;
+    if(this.y + this.h >= canvas.height - 112) { this.y = canvas.height-112-this.h; gameOver = true; }
+    if(this.y < 0) this.y = 0;
+  },
+  flap(){ this.vy = jump; }
+};
+
+// Suelo
+function drawGround() {
+  ctx.fillStyle='black';
+  ctx.fillRect(0, canvas.height-112, canvas.width, 112);
+}
+
+// Tubos
+function spawnPipe(){
+  const topHeight = Math.random() * (canvas.height - pipeGap - 150) + 20;
+  pipes.push({x:canvas.width, top:topHeight});
+}
+
+function drawPipes(){
+  ctx.fillStyle='black';
+  pipes.forEach(p=>{
+    ctx.fillRect(p.x,0,pipeWidth,p.top);
+    ctx.fillRect(p.x,p.top+pipeGap,pipeWidth,canvas.height - 112 - (p.top+pipeGap));
+  });
+}
+
+function updatePipes(){
+  pipes.forEach(p=>{
+    p.x -= pipeSpeed;
+    // Colisión
+    if(bird.x + bird.w > p.x && bird.x < p.x + pipeWidth){
+      if(bird.y < p.top || bird.y + bird.h > p.top + pipeGap){
+        gameOver = true;
+      }
+    }
+    // puntuación
+    if(!p.passed && p.x + pipeWidth < bird.x){ p.passed=true; score++; updateUI(); }
+  });
+  pipes = pipes.filter(p=>p.x + pipeWidth > 0);
+}
+
+// UI
+function updateUI(){ document.getElementById('ui').innerText = `Puntos: ${score} — Mejor: ${best}`; }
+
+// Entrada
+document.addEventListener('keydown', e=>{ if(e.code==='Space') { if(gameOver) resetGame(); else bird.flap(); }});
+canvas.addEventListener('mousedown', ()=>{ if(gameOver) resetGame(); else bird.flap(); });
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); if(gameOver) resetGame(); else bird.flap(); }, {passive:false});
+
+// Reset
+function resetGame(){
+  bird.y = canvas.height/2; bird.vy=0;
+  pipes=[]; score=0; gameOver=false;
+  updateUI();
+}
+
+// Loop
+function loop(){
+  frames++;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Fondo
+  ctx.fillStyle='#70c5ce'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Tubos
+  if(frames % 90 === 0) spawnPipe();
+  drawPipes();
+  if(!gameOver) updatePipes();
+
+  // Suelo
+  drawGround();
+
+  // Pájaro
+  if(!gameOver) bird.update();
+  bird.draw();
+
+  // Game over
+  if(gameOver){
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#fff';
+    ctx.font='24px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('¡Game Over!',canvas.width/2,canvas.height/2-20);
+    ctx.font='16px sans-serif';
+    ctx.fillText('Clic o espacio para reiniciar',canvas.width/2,canvas.height/2+10);
+    if(score>best){ best=score; localStorage.setItem('flappy_best',best); }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+updateUI();
+loop();
+</script>
+</body>
+</html>
